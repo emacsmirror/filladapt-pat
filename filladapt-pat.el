@@ -1,10 +1,10 @@
 ;;; filladapt-pat.el --- add or remove some filladapt patterns
 
-;; Copyright 2007, 2008, 2009 Kevin Ryde
+;; Copyright 2007, 2008, 2009, 2010, 2011 Kevin Ryde
 
 ;; Author: Kevin Ryde <user42@zip.com.au>
-;; Version: 2
-;; Keywords: convenience
+;; Version: 3
+;; Keywords: convenience, filladapt
 ;; URL: http://user42.tuxfamily.org/filladapt-pat/index.html
 ;; EmacsWiki: FillAdapt
 
@@ -47,10 +47,13 @@
 ;;; History:
 ;;
 ;; Version 1 - the first version
-;; Version 2 - new version-bullet, misc cleanups
+;; Version 2 - new filladapt-pat-version-bullet misc cleanups
+;; Version 3 - new filladapt-pat-no-citation->
 
 
 ;;; Code:
+
+(defvar filladapt-token-table) ;; quieten the byte compiler, from filladapt.el
 
 (defcustom filladapt-pat-globally nil
   "`filladapt-pat' functions to apply globally when `filladapt' loads.
@@ -64,6 +67,7 @@ This is experimental."
              filladapt-pat-no-symbol-bullets
              filladapt-pat-no-postscript
              filladapt-pat-no-supercite
+             filladapt-pat-no-citation->
              filladapt-pat-bullet-<li>
              filladapt-pat-bullet-<p>
              filladapt-pat-bullet-<!--
@@ -118,7 +122,7 @@ does."
                  `(lambda () (filladapt-pat-token-func ,func)))))
 
 (defun filladapt-pat-no-elem (elem)
-  "Remove a particlar ELEM entries from `filladapt-token-table'.
+  "Remove a particular ELEM entries from `filladapt-token-table'.
 ELEM is a (REGEXP SYM) form, compared against entries using `equal'."
   (filladapt-pat-token-func
    ;; OR lexical-let from 'cl
@@ -136,7 +140,7 @@ ELEM is a (REGEXP SYM) form, compared against entries using `equal'."
                              token-table)))))
 
 (defun filladapt-pat-add (elem)
-  "Add an particlar ELEM entry to `filladapt-token-table'.
+  "Add an particular ELEM entry to `filladapt-token-table'.
 ELEM is a (REGEXP SYM) form.  It's appended to
 `filladapt-token-table' so as to obey the comment with that
 variable that its (\"^\" beginning-of-line) entry must be first."
@@ -150,6 +154,7 @@ variable that its (\"^\" beginning-of-line) entry must be first."
 
 ;;;###autoload
 (defun filladapt-pat-no-numbered-bullets (&optional filladapt-pat-global-arg)
+  ;; checkdoc-params: (filladapt-pat-global-arg)
   "No `filladapt' numbered bullet points like \"2.1\" (buffer-local)."
   (interactive)
   (filladapt-pat-no-elem '("[0-9]+\\(\\.[0-9]+\\)+[ \t]" bullet))
@@ -158,12 +163,14 @@ variable that its (\"^\" beginning-of-line) entry must be first."
 
 ;;;###autoload
 (defun filladapt-pat-no-symbol-bullets (&optional filladapt-pat-global-arg)
+  ;; checkdoc-params: (filladapt-pat-global-arg)
   "No `filladapt' symbol bullet points like \"*\" or \"-\" (buffer-local)."
   (interactive)
   (filladapt-pat-no-elem '("[-~*+]+[ \t]" bullet)))
 
 ;;;###autoload
 (defun filladapt-pat-no-postscript (&optional filladapt-pat-global-arg)
+  ;; checkdoc-params: (filladapt-pat-global-arg)
   "No `filladapt' postscript comments \"%\" (buffer-local).
 This is good in Perl modes to stop a hash variable in a comment
 
@@ -183,16 +190,24 @@ has a \"%\" postscript comment."
 
 ;;;###autoload
 (defun filladapt-pat-no-supercite (&optional filladapt-pat-global-arg)
+  ;; checkdoc-params: (filladapt-pat-global-arg)
   "No `filladapt' supercite \"FOO>\" (buffer-local).
-This is good in Perl POD when markup like
+Removing supercite is good in Perl POD when markup crosses a line
+break, making \"thing>\" look like a supercite.
 
     this is C<some
     thing> blah blah
 
-crosses a line break, making \"thing>\" look like a supercite.
-
 \(See `perl-pod-gt-nobreak-p' from perl-pod-gt.el to avoid such
-breaks in S<> markup, though not other markup.)"
+breaks in S<> markup, though not other markup.)
+
+The same sort of \">\" can occur in HTML, but the supercite
+pattern disallows quotes so the usual case of a tag ending with a
+quoted attribute not struck,
+
+    ... <tag
+    attr=''>         <-- not matched by supercite pattern"
+
   (interactive)
   (filladapt-pat-no-sym 'supercite-citation))
 ;;;###autoload
@@ -202,17 +217,31 @@ breaks in S<> markup, though not other markup.)"
 ;;;###autoload
 (custom-add-option 'pod-mode-hook   'filladapt-pat-no-supercite)
 
+;;;###autoload
+(defun filladapt-pat-no-citation-> (&optional filladapt-pat-global-arg)
+  ;; checkdoc-params: (filladapt-pat-global-arg)
+  "No `filladapt' email citation \">\" (buffer-local).
+Usually \">\" is fine in all modes and can be good if cutting and
+pasting some email into a text file or program file, but
+sometimes it can mistake a greater-than sign at the start of a
+line.  This function can disable it if that happens, perhaps just
+interactively as a one-off. "
+  (interactive)
+  (filladapt-pat-no-sym 'citation->))
+
 
 ;;-----------------------------------------------------------------------------
 ;; adding more bullets
 
 ;;;###autoload
 (defun filladapt-pat-bullet (regexp &optional filladapt-pat-global-arg)
+  ;; checkdoc-params: (filladapt-pat-global-arg)
   "Add REGEXP as a `filladapt' bullet point (buffer-local)."
   (filladapt-pat-add (list regexp 'bullet)))
 
 ;;;###autoload
 (defun filladapt-pat-bullet-<li> (&optional filladapt-pat-global-arg)
+  ;; checkdoc-params: (filladapt-pat-global-arg)
   "Add <li> as a `filladapt' bullet point (buffer-local)."
   (interactive)
   (filladapt-pat-bullet "<li>[ \t]*"))
@@ -221,6 +250,7 @@ breaks in S<> markup, though not other markup.)"
 
 ;;;###autoload
 (defun filladapt-pat-bullet-<p> (&optional filladapt-pat-global-arg)
+  ;; checkdoc-params: (filladapt-pat-global-arg)
   "Add <li> as a `filladapt' bullet point (buffer-local)."
   (interactive)
   (filladapt-pat-bullet "<p>[ \t]*"))
@@ -229,6 +259,7 @@ breaks in S<> markup, though not other markup.)"
 
 ;;;###autoload
 (defun filladapt-pat-bullet-<!-- (&optional filladapt-pat-global-arg)
+  ;; checkdoc-params: (filladapt-pat-global-arg)
   "Add <!-- as a `filladapt' bullet point (buffer-local)."
   (interactive)
   (filladapt-pat-bullet "<!--[ \t]+"))
@@ -239,6 +270,7 @@ breaks in S<> markup, though not other markup.)"
 
 ;;;###autoload
 (defun filladapt-pat-bullet-pod (&optional filladapt-pat-global-arg)
+  ;; checkdoc-params: (filladapt-pat-global-arg)
   "Add POD =foo as a `filladapt' bullet point (buffer-local).
 This gives for instance
 
@@ -256,13 +288,16 @@ This gives for instance
 (custom-add-option 'xs-mode-hook    'filladapt-pat-bullet-pod)
 
 (defun filladapt-pat-version-bullet (&optional filladapt-pat-global-arg)
-  "Make \"Version 123 - \" a bullet point for filladapt.
-This formats short version strings like
+  ;; checkdoc-params: (filladapt-pat-global-arg)
+  "Setup \"Version 123 - \" as a bullet point for filladapt.
+This formats short version strings as
 
-    Version 3 - some thing about this
+    Version 3 - some thing blah blah blah about this
                 new version"
   (interactive)
   (filladapt-pat-bullet "Version [0-9]+ +- +"))
+
+;; LocalWords: filladapt el
 
 (provide 'filladapt-pat)
 
