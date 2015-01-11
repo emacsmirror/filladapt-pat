@@ -1,9 +1,9 @@
 ;;; filladapt-pat.el --- add or remove some filladapt patterns
 
-;; Copyright 2007, 2008, 2009, 2010, 2011 Kevin Ryde
+;; Copyright 2007, 2008, 2009, 2010, 2011, 2013, 2014 Kevin Ryde
 
-;; Author: Kevin Ryde <user42@zip.com.au>
-;; Version: 3
+;; Author: Kevin Ryde <user42_kevin@yahoo.com.au>
+;; Version: 5
 ;; Keywords: convenience, filladapt
 ;; URL: http://user42.tuxfamily.org/filladapt-pat/index.html
 ;; EmacsWiki: FillAdapt
@@ -23,14 +23,18 @@
 
 ;;; Commentary:
 
-;; This is some functions to add or remove patterns filladapt uses for
+;; This is some functions to add or remove patterns for `filladapt-mode'
 ;; paragraph filling.  They're designed to go in a mode hook and operate
 ;; buffer-local, but can also be used interactively for occasional changes
-;; to the patterns.
+;; to the patterns, or globally to have everywhere.
 ;;
 ;; The setups work whether or not filladapt has loaded yet and do nothing if
-;; you haven't turned on filladapt, or for that matter if you don't have it
-;; at all.
+;; you haven't turned on filladapt or if you don't have it at all.
+;;
+;; Most of the patterns added or removed are fairly simple and the
+;; descriptions of what's done tend to be longer than the actual code, but
+;; the subtlety comes from acting buffer-local and deferring until filladapt
+;; is actually used.
 
 ;;; Install:
 
@@ -49,45 +53,43 @@
 ;; Version 1 - the first version
 ;; Version 2 - new filladapt-pat-version-bullet misc cleanups
 ;; Version 3 - new filladapt-pat-no-citation->
-
+;; Version 4 - new filladapt-pat-dnl, filladapt-pat-LocalWords
+;; Version 5 - filladapt-pat-globally is risky-local-variable
 
 ;;; Code:
 
-(defvar filladapt-token-table) ;; quieten the byte compiler, from filladapt.el
+;; in filladapt.el, quieten the byte compiler here
+(defvar filladapt-token-table)
+(defvar filladapt-token-match-table)
+(defvar filladapt-token-conversion-table)
 
-(defcustom filladapt-pat-globally nil
-  "`filladapt-pat' functions to apply globally when `filladapt' loads.
-This is experimental."
-  :group 'fill
-  :type '(repeat function)
-  :set (lambda (sym val)
-         (custom-set-default sym val)
-         (run-hook-with-args 'filladapt-pat-globally 'globally))
-  :options '(filladapt-pat-no-numbered-bullets
-             filladapt-pat-no-symbol-bullets
-             filladapt-pat-no-postscript
-             filladapt-pat-no-supercite
-             filladapt-pat-no-citation->
-             filladapt-pat-bullet-<li>
-             filladapt-pat-bullet-<p>
-             filladapt-pat-bullet-<!--
-             filladapt-pat-bullet-pod
-             filladapt-pat-version-bullet))
+;;-----------------------------------------------------------------------------
 
 (defvar filladapt-pat-pending-local nil
-  "A list of functions to run in this buffer when `filladapt' loads.
+  "A list of functions to run in this buffer when filladapt.el loads.
 This is an internal part of filladapt-pat.el.")
 (make-variable-buffer-local 'filladapt-pat-pending-local)
 
 (defvar filladapt-pat-pending-global nil
-  "A list of functions to run globally when `filladapt' loads.
+  "A list of functions to run globally when filladapt.el loads.
 This is an internal part of filladapt-pat.el.")
 
 (defvar filladapt-pat-global-arg nil)
 
 (defun filladapt-pat-after-load ()
-  "Apply pending filladapt-pat setups when `filladapt' loads.
+  "Apply pending filladapt-pat setups when filladapt.el loads.
 This is an internal part of filladapt-pat.el."
+
+  (add-to-list 'filladapt-token-match-table
+               '(filladapt-pat-LocalWords filladapt-pat-LocalWords))
+  (add-to-list 'filladapt-token-conversion-table
+               '(filladapt-pat-LocalWords . exact))
+
+  (add-to-list 'filladapt-token-match-table
+               '(filladapt-pat-dnl filladapt-pat-dnl))
+  (add-to-list 'filladapt-token-conversion-table
+               '(filladapt-pat-dnl . exact))
+
   (run-hook-with-args 'filladapt-pat-globally 'globally)
   (let ((filladapt-pat-global-arg 'globally))
     (run-hooks 'filladapt-pat-pending-global))
@@ -95,7 +97,6 @@ This is an internal part of filladapt-pat.el."
     (with-current-buffer buffer
       (run-hooks 'filladapt-pat-pending-local)
       (kill-local-variable 'filladapt-pat-pending-local))))
-(eval-after-load "filladapt" '(filladapt-pat-after-load))
 
 (defun filladapt-pat-token-func (func)
   "Modify `filladapt-token-table' using FUNC.
@@ -155,7 +156,7 @@ variable that its (\"^\" beginning-of-line) entry must be first."
 ;;;###autoload
 (defun filladapt-pat-no-numbered-bullets (&optional filladapt-pat-global-arg)
   ;; checkdoc-params: (filladapt-pat-global-arg)
-  "No `filladapt' numbered bullet points like \"2.1\" (buffer-local)."
+  "No `filladapt-mode' numbered bullet points like \"2.1\" (buffer-local)."
   (interactive)
   (filladapt-pat-no-elem '("[0-9]+\\(\\.[0-9]+\\)+[ \t]" bullet))
   (filladapt-pat-no-elem '("[0-9]+\\.[ \t]" bullet))
@@ -164,14 +165,14 @@ variable that its (\"^\" beginning-of-line) entry must be first."
 ;;;###autoload
 (defun filladapt-pat-no-symbol-bullets (&optional filladapt-pat-global-arg)
   ;; checkdoc-params: (filladapt-pat-global-arg)
-  "No `filladapt' symbol bullet points like \"*\" or \"-\" (buffer-local)."
+  "No `filladapt-mode' symbol bullet points like \"*\" or \"-\" (buffer-local)."
   (interactive)
   (filladapt-pat-no-elem '("[-~*+]+[ \t]" bullet)))
 
 ;;;###autoload
 (defun filladapt-pat-no-postscript (&optional filladapt-pat-global-arg)
   ;; checkdoc-params: (filladapt-pat-global-arg)
-  "No `filladapt' postscript comments \"%\" (buffer-local).
+  "No `filladapt-mode' postscript comments \"%\" (buffer-local).
 This is good in Perl modes to stop a hash variable in a comment
 
     # the variable
@@ -191,7 +192,7 @@ has a \"%\" postscript comment."
 ;;;###autoload
 (defun filladapt-pat-no-supercite (&optional filladapt-pat-global-arg)
   ;; checkdoc-params: (filladapt-pat-global-arg)
-  "No `filladapt' supercite \"FOO>\" (buffer-local).
+  "No `filladapt-mode' supercite \"FOO>\" (buffer-local).
 Removing supercite is good in Perl POD when markup crosses a line
 break, making \"thing>\" look like a supercite.
 
@@ -220,7 +221,7 @@ quoted attribute not struck,
 ;;;###autoload
 (defun filladapt-pat-no-citation-> (&optional filladapt-pat-global-arg)
   ;; checkdoc-params: (filladapt-pat-global-arg)
-  "No `filladapt' email citation \">\" (buffer-local).
+  "No `filladapt-mode' email citation \">\" (buffer-local).
 Usually \">\" is fine in all modes and can be good if cutting and
 pasting some email into a text file or program file, but
 sometimes it can mistake a greater-than sign at the start of a
@@ -236,13 +237,13 @@ interactively as a one-off. "
 ;;;###autoload
 (defun filladapt-pat-bullet (regexp &optional filladapt-pat-global-arg)
   ;; checkdoc-params: (filladapt-pat-global-arg)
-  "Add REGEXP as a `filladapt' bullet point (buffer-local)."
+  "Add REGEXP as a `filladapt-mode' bullet point (buffer-local)."
   (filladapt-pat-add (list regexp 'bullet)))
 
 ;;;###autoload
 (defun filladapt-pat-bullet-<li> (&optional filladapt-pat-global-arg)
   ;; checkdoc-params: (filladapt-pat-global-arg)
-  "Add <li> as a `filladapt' bullet point (buffer-local)."
+  "Add <li> as a `filladapt-mode' bullet point (buffer-local)."
   (interactive)
   (filladapt-pat-bullet "<li>[ \t]*"))
 ;;;###autoload
@@ -251,7 +252,7 @@ interactively as a one-off. "
 ;;;###autoload
 (defun filladapt-pat-bullet-<p> (&optional filladapt-pat-global-arg)
   ;; checkdoc-params: (filladapt-pat-global-arg)
-  "Add <li> as a `filladapt' bullet point (buffer-local)."
+  "Add <li> as a `filladapt-mode' bullet point (buffer-local)."
   (interactive)
   (filladapt-pat-bullet "<p>[ \t]*"))
 ;;;###autoload
@@ -260,7 +261,7 @@ interactively as a one-off. "
 ;;;###autoload
 (defun filladapt-pat-bullet-<!-- (&optional filladapt-pat-global-arg)
   ;; checkdoc-params: (filladapt-pat-global-arg)
-  "Add <!-- as a `filladapt' bullet point (buffer-local)."
+  "Add <!-- as a `filladapt-mode' bullet point (buffer-local)."
   (interactive)
   (filladapt-pat-bullet "<!--[ \t]+"))
 ;;;###autoload
@@ -271,7 +272,7 @@ interactively as a one-off. "
 ;;;###autoload
 (defun filladapt-pat-bullet-pod (&optional filladapt-pat-global-arg)
   ;; checkdoc-params: (filladapt-pat-global-arg)
-  "Add POD =foo as a `filladapt' bullet point (buffer-local).
+  "Add POD =foo as a `filladapt-mode' bullet point (buffer-local).
 This gives for instance
 
     =item this is an item in
@@ -296,6 +297,87 @@ This formats short version strings as
                 new version"
   (interactive)
   (filladapt-pat-bullet "Version [0-9]+ +- +"))
+
+;;-----------------------------------------------------------------------------
+;; addition -- dnl
+
+;;;###autoload
+(defun filladapt-pat-dnl (&optional filladapt-pat-global-arg)
+  ;; checkdoc-params: (filladapt-pat-global-arg)
+  "Add dnl as a fill prefix pattern for `filladapt-mode'.
+This is good in `m4-mode',
+
+    (add-hook 'm4-mode-hook 'filladapt-pat-dnl)
+
+and perhaps other modes using m4 as a pre-precessor, such as
+`autoconf-mode' (or `sh-mode' if using that to edit autoconfery).
+\"dnl\" is almost distinctive enough to have it enabled
+globally."
+
+  (interactive)
+  (filladapt-pat-add '("\\bdnl\\b" filladapt-pat-dnl)))
+
+;;;###autoload
+(custom-add-option 'm4-mode-hook  'filladapt-pat-dnl)
+
+;;-----------------------------------------------------------------------------
+;; addition -- LocalWords
+
+;;;###autoload
+(defun filladapt-pat-LocalWords (&optional filladapt-pat-global-arg)
+  ;; checkdoc-params: (filladapt-pat-global-arg)
+  "Add \"LocalWords:\" as a fill prefix for `filladapt-mode'.
+\"LocalWords:\" is the default `ispell-words-keyword' used to
+list per-file correct spellings.  Having it as a fill prefix is
+convenient for a long list of words.
+
+    ;; LocalWords: aaa bbb
+    ;; LocalWords: ccc ddd
+
+This is good for global use since \"LocalWords:\" is unlikely to
+have another meaning.  That can be setup with
+
+    (filladapt-pat-LocalWords t)
+
+Any comment prefix such as \";;\" shown will be handled by
+`filladapt-mode' in its usual ways to make a compound prefix."
+
+  (interactive)
+  (filladapt-pat-add '("\\bLocalWords:" filladapt-pat-LocalWords)))
+
+
+;;-----------------------------------------------------------------------------
+
+;; This is after the various function definitions so that the :set can run
+;; on an initial value from the user.
+
+(defcustom filladapt-pat-globally nil
+  "`filladapt-pat' functions to apply globally when filladapt.el loads.
+This is experimental."
+  :group 'fill
+  :type 'hook
+  ;; note as of emacs24.3 :options displays in reverse order
+  :options '(filladapt-pat-bullet-<li>
+             filladapt-pat-bullet-<p>
+             filladapt-pat-bullet-<!--
+             filladapt-pat-bullet-pod
+             filladapt-pat-version-bullet
+             filladapt-pat-no-numbered-bullets
+             filladapt-pat-no-symbol-bullets
+             filladapt-pat-no-postscript
+             filladapt-pat-no-supercite
+             filladapt-pat-no-citation->
+             filladapt-pat-dnl
+             filladapt-pat-LocalWords)
+  :set (lambda (sym val)
+         (custom-set-default sym val)
+         (run-hook-with-args 'filladapt-pat-globally 'globally)))
+;;;###autoload
+(put 'filladapt-pat-globally 'risky-local-variable t)
+
+(eval-after-load "filladapt" '(filladapt-pat-after-load))
+
+;;-----------------------------------------------------------------------------
 
 ;; LocalWords: filladapt el
 
