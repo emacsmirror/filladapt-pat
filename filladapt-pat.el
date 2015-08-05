@@ -1,9 +1,9 @@
 ;;; filladapt-pat.el --- add or remove some filladapt patterns
 
-;; Copyright 2007, 2008, 2009, 2010, 2011, 2013, 2014 Kevin Ryde
+;; Copyright 2007, 2008, 2009, 2010, 2011, 2013, 2014, 2015 Kevin Ryde
 
 ;; Author: Kevin Ryde <user42_kevin@yahoo.com.au>
-;; Version: 5
+;; Version: 6
 ;; Keywords: convenience, filladapt
 ;; URL: http://user42.tuxfamily.org/filladapt-pat/index.html
 ;; EmacsWiki: FillAdapt
@@ -23,10 +23,10 @@
 
 ;;; Commentary:
 
-;; This is some functions to add or remove patterns for `filladapt-mode'
-;; paragraph filling.  They're designed to go in a mode hook and operate
-;; buffer-local, but can also be used interactively for occasional changes
-;; to the patterns, or globally to have everywhere.
+;; This package is various added or removed patterns for `filladapt-mode'
+;; paragraph filling.  The functions are designed to go in a mode hook and
+;; operate buffer-local, but can also be used interactively for occasional
+;; changes to the patterns, or globally to have everywhere.
 ;;
 ;; The setups work whether or not filladapt has loaded yet and do nothing if
 ;; you haven't turned on filladapt or if you don't have it at all.
@@ -55,6 +55,7 @@
 ;; Version 3 - new filladapt-pat-no-citation->
 ;; Version 4 - new filladapt-pat-dnl, filladapt-pat-LocalWords
 ;; Version 5 - filladapt-pat-globally is risky-local-variable
+;; Version 6 - new filladapt-pat-gp-comment
 
 ;;; Code:
 
@@ -66,29 +67,28 @@
 ;;-----------------------------------------------------------------------------
 
 (defvar filladapt-pat-pending-local nil
-  "A list of functions to run in this buffer when filladapt.el loads.
-This is an internal part of filladapt-pat.el.")
+  "An internal part of filladapt-pat.el.
+A list of functions to run in this buffer when filladapt.el loads.")
 (make-variable-buffer-local 'filladapt-pat-pending-local)
 
 (defvar filladapt-pat-pending-global nil
-  "A list of functions to run globally when filladapt.el loads.
-This is an internal part of filladapt-pat.el.")
+  "An internal part of filladapt-pat.el.
+A list of functions to run globally when filladapt.el loads.")
 
 (defvar filladapt-pat-global-arg nil)
 
 (defun filladapt-pat-after-load ()
-  "Apply pending filladapt-pat setups when filladapt.el loads.
-This is an internal part of filladapt-pat.el."
+  "An internal part of filladapt-pat.el.
+This function is designed to be run when filladapt.el loads.
+Apply pending filladapt-pat setups."
 
-  (add-to-list 'filladapt-token-match-table
-               '(filladapt-pat-LocalWords filladapt-pat-LocalWords))
-  (add-to-list 'filladapt-token-conversion-table
-               '(filladapt-pat-LocalWords . exact))
-
-  (add-to-list 'filladapt-token-match-table
-               '(filladapt-pat-dnl filladapt-pat-dnl))
-  (add-to-list 'filladapt-token-conversion-table
-               '(filladapt-pat-dnl . exact))
+  ;; All our filladapt-token-match-table and filladapt-token-conversion-table.
+  ;; These additions can be made globally even if only used sometimes.
+  (dolist (name '(filladapt-pat-LocalWords
+                  filladapt-pat-dnl
+                  filladapt-pat-gp-comment))
+    (add-to-list 'filladapt-token-match-table      (list name name))
+    (add-to-list 'filladapt-token-conversion-table (cons name 'exact)))
 
   (run-hook-with-args 'filladapt-pat-globally 'globally)
   (let ((filladapt-pat-global-arg 'globally))
@@ -99,8 +99,9 @@ This is an internal part of filladapt-pat.el."
       (kill-local-variable 'filladapt-pat-pending-local))))
 
 (defun filladapt-pat-token-func (func)
-  "Modify `filladapt-token-table' using FUNC.
-This is an internal part of filladapt-pat.el.
+  "An internal part of filladapt-pat.el.
+Modify `filladapt-token-table' using FUNC.
+
 
 FUNC is called as (FUNC filladapt-token-table) and its return
 value is written back to `filladapt-token-table', buffer local.
@@ -204,7 +205,7 @@ breaks in S<> markup, though not other markup.)
 
 The same sort of \">\" can occur in HTML, but the supercite
 pattern disallows quotes so the usual case of a tag ending with a
-quoted attribute not struck,
+quoted attribute is not struck,
 
     ... <tag
     attr=''>         <-- not matched by supercite pattern"
@@ -299,7 +300,7 @@ This formats short version strings as
   (filladapt-pat-bullet "Version [0-9]+ +- +"))
 
 ;;-----------------------------------------------------------------------------
-;; addition -- dnl
+;; addition -- dnl and \\ comments
 
 ;;;###autoload
 (defun filladapt-pat-dnl (&optional filladapt-pat-global-arg)
@@ -320,6 +321,26 @@ globally."
 ;;;###autoload
 (custom-add-option 'm4-mode-hook  'filladapt-pat-dnl)
 
+;;;###autoload
+(defun filladapt-pat-gp-comment (&optional filladapt-pat-global-arg)
+  ;; checkdoc-params: (filladapt-pat-global-arg)
+  "Add Pari/GP comment \\=\\\\=\\ as a fill prefix for `filladapt-mode'.
+This is designed for use in `gp-script-mode'.
+
+    (add-hook 'gp-script-mode-hook 'filladapt-pat-gp-comment)
+
+\\=\\\\=\\ is setup buffer-local.  It's probably only of interest
+for gp scripts so would not usually be enabled globally.
+\\=\\\\=\\ near the start of a line is probably otherwise
+unusual, though it may occur as a row separator in TeX."
+
+  (interactive)
+  (filladapt-pat-add '("\\\\\\\\+" filladapt-pat-gp-comment)))
+
+;;;###autoload
+(custom-add-option 'gp-script-mode-hook 'filladapt-pat-gp-comment)
+
+
 ;;-----------------------------------------------------------------------------
 ;; addition -- LocalWords
 
@@ -329,7 +350,7 @@ globally."
   "Add \"LocalWords:\" as a fill prefix for `filladapt-mode'.
 \"LocalWords:\" is the default `ispell-words-keyword' used to
 list per-file correct spellings.  Having it as a fill prefix is
-convenient for a long list of words.
+convenient for filling a long list of words.
 
     ;; LocalWords: aaa bbb
     ;; LocalWords: ccc ddd
@@ -367,6 +388,7 @@ This is experimental."
              filladapt-pat-no-postscript
              filladapt-pat-no-supercite
              filladapt-pat-no-citation->
+             filladapt-pat-gp-comment
              filladapt-pat-dnl
              filladapt-pat-LocalWords)
   :set (lambda (sym val)
